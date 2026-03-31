@@ -1,0 +1,383 @@
+---
+title: "Himalayan Climbing Expeditions"
+author: 
+date: "2025-04-19"
+output:
+  pdf_document: default
+  html_document:
+    highlight: tango
+    theme: readable
+subtitle:
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(include = TRUE,
+                      message = FALSE, warning = FALSE, 
+                      fig.align = "center",  out.width = "80%")
+```
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(tidytuesdayR)
+library(ggplot2)
+library(ggthemes)
+library(ggrepel)
+```
+
+```{r}
+tuesdata <- tidytuesdayR::tt_load(2025, week = 3)
+
+exped_tidy <- tuesdata$exped_tidy
+peaks_tidy <- tuesdata$peaks_tidy
+```
+
+## Introduction
+
+The Himalayan Database is the most comprehensive record of mountaineering in the Nepal Himalaya, originally compiled by Elizabeth Hawley and now maintained as an open‑access resource. For our analysis, we will be using two 'tidy' tables: `peaks_tidy` and `exped_tidy` to find out what factors affect expedition success.
+
+### Description of peaks_tidy and exped_tidy Datasets
+
+The `peaks_tidy` dataset describes each peak (height, range, access restrictions, etc.)
+
+```{r}
+head(peaks_tidy)
+```
+
+The `exped_tidy` dataset lists all expeditions from 2020 through 2024, including team composition, hired support, oxygen use, routes, outcomes, and termination reasons.
+
+```{r}
+head(exped_tidy)
+```
+
+### Question of Interest
+
+What factors affect expedition success?
+
+Out of the 844 expeditions during this period, the overall summit success rate is about 72.5%, meaning more than one in four attempts still end without reaching the top. This substantial failure rate of over 230 unsuccessful climbs has motivated us to find out: what factors affect expedition success? By examining variables such as core team size, the presence of hired personnel, supplemental oxygen use, and key termination reasons (bad weather, technical difficulty), we can pinpoint which conditions truly tip the odds toward success or failure on these formidable peaks.
+
+```{r}
+exped_tidy_intro <- exped_tidy %>%
+  select(EXPID, TOTMEMBERS, TERMREASON, TERMNOTE) %>%
+  filter(TOTMEMBERS != 0,
+         !TERMREASON %in% c(12, 13, 14)) %>%
+  distinct(EXPID, .keep_all = TRUE) %>%
+  mutate(OUTCOME_NUMERIC = ifelse(TERMREASON %in% c(1, 3) & is.na(TERMNOTE), 1, 0)) %>%
+  summarise(SUCCESS_RATE = mean(OUTCOME_NUMERIC), COUNT = n()) %>%
+  glimpse()
+```
+
+## Plot 1 — Expedition Group Size and Success
+
+Starting from `exped_tidy`, we kept only the columns we needed (`EXPID`, `YEAR`, `TOTMEMBERS`, `TOTHIRED`, `TERMREASON`, `TERMNOTE`, `NOHIRED`) and removed any expeditions with zero members or with ambiguous termination codes (12,13,14). We then removed duplicates using the distinct `EXPID` so that each expedition appears only once.
+
+We also created `OUTCOME`, marking an expedition “SUCCESS” if `TERMREASON` was 1 or 3 and `TERMNOTE` was blank, and “FAILURE” otherwise. Finally, we grouped by `NOHIRED` (indicating whether any hired staff were used) and `OUTCOME`, and computed the average team size in each of those four segments.
+
+```{r}
+exped_tidy1 <- exped_tidy %>%
+  select(EXPID, YEAR, TOTMEMBERS, TOTHIRED, TERMREASON, TERMNOTE, NOHIRED) %>%
+  filter(TOTMEMBERS != 0, !TERMREASON %in% c(12, 13, 14)) %>%
+  distinct(EXPID, .keep_all = TRUE) %>%
+  mutate(OUTCOME = ifelse(TERMREASON %in% c(1, 3) & is.na(TERMNOTE), "SUCCESS", "FAILURE")) %>%
+  arrange(TOTMEMBERS)
+
+mean_data <- exped_tidy1 %>%
+  group_by(NOHIRED, OUTCOME) %>%
+  summarise(mean_group = mean(TOTMEMBERS), .groups = "drop")
+
+segment_nohired_df <- data.frame(
+  NOHIRED = FALSE,
+  xstart = 15,        
+  xend = 6,       
+  ystart = 0.15,   
+  yend = 0.10)
+
+text_nohired_df <- data.frame(
+  NOHIRED = FALSE,
+  xstart = 24,   
+  xend = 12,        
+  ystart = 0.13, 
+  yend = 0.09,       
+  label = "Small teams could \nbe under-resourced")
+
+segment_hired_df <- data.frame(
+  NOHIRED = TRUE,
+  xstart = 12,      
+  xend = 6,        
+  ystart = 0.2,     
+  yend = 0.2)
+
+text_hired_df <- data.frame(
+  NOHIRED = TRUE,
+  xstart = 21,        
+  xend = 15,        
+  ystart = 0.11,    
+  yend = 0.05,       
+  label = "With hired help,\nother factors \ndrive success")
+```
+
+This visualization examines the relationship between expedition group size and success, focusing on two key scenarios: expeditions with and without hired staff. By plotting density curves of group size for successful and unsuccessful expeditions, the graph reveals distinct patterns.
+
+Since the distribution of group sizes is heavily skewed toward smaller numbers, a density plot can provide a smooth estimate of the underlying probability density. It allows us to see the relative proportion of expeditions of different sizes for both successful and failed outcomes.
+
+```{r}
+ggplot(exped_tidy1, aes(x = TOTMEMBERS, fill = OUTCOME)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(data = mean_data, 
+             aes(xintercept = mean_group, color = OUTCOME),
+             linetype = "dashed", size = 0.5, 
+             show.legend = F) +
+  geom_text_repel(data = mean_data,
+                  aes(x = mean_group, label = round(mean_group, 1), color = OUTCOME),
+                  y = 0.3, vjust = -0.5,
+                  nudge_x = 3,
+                  show.legend = F
+                  ) + 
+  geom_rect(data = subset(exped_tidy1, NOHIRED == FALSE)[1,], 
+          aes(xmin = 2, xmax = 6, ymin = 0.08, ymax = 0.11),
+          inherit.aes = FALSE, fill = "red", alpha = 0.3) +
+  geom_segment(data = segment_nohired_df, 
+               aes(x = xstart, xend = xend, y = ystart, yend = yend),
+               inherit.aes = FALSE,
+               arrow = arrow(length = unit(0.2, "cm")), color = "red") +
+  geom_text(data = text_nohired_df, 
+            aes(x = xstart, y = ystart, label = label, color = color),
+            inherit.aes = FALSE, vjust = -0.5, color = "red") +
+  geom_segment(data = segment_hired_df, 
+               aes(x = xstart, xend = xend, y = ystart, yend = yend),
+               inherit.aes = FALSE,
+               arrow = arrow(length = unit(0.2, "cm")), color = "black") +
+  geom_text(data = text_hired_df, 
+            aes(x = xstart, y = ystart, label = label, color = color),
+            inherit.aes = FALSE, vjust = -0.5, color = "black") +
+  facet_wrap(~NOHIRED, labeller = labeller(NOHIRED = c("FALSE" = "No Hired Staff",
+                                                       "TRUE" = "With Hired Staff"))) +
+  labs(title = "Density Plot of Expedition Group Size",
+       subtitle = "(split according to presence of Hired Staff)",
+       x = "Expedition size",
+       y = "Density") +
+  theme_economist() +
+  theme(text= element_text(family = "mono"),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(size = 12, hjust = 0.5),
+        plot.subtitle = element_text(margin = margin(t = 3), size = 8, hjust = 0.5),
+        axis.title.x = element_text(margin = margin(t = 10), size = 11), 
+        axis.title.y = element_text(margin = margin(r = 10), size = 11),
+        axis.text.x = element_text(size = 10),
+        plot.margin = unit(c(1,2,1,1), "cm"))
+```
+
+Overall, expedition success tends to increase with group size: larger teams show a higher density of successful summits in both plots. When we split by hired support, failures without hired staff concentrate around smaller teams ($\approx$ 5 members), suggesting that without extra manpower and resource sharing—critical for carrying loads, setting camps, and covering for injuries—small groups are more vulnerable. In contrast, expeditions with hired personnel have nearly identical mean group sizes for success and failure ($\approx$ 3.7 vs 3.4), showing that professional support levels the playing field by supplying technical expertise and logistical aid, making core team size far less critical and shifting the key determinants of success to factors like oxygen use, peak difficulty, and leadership.
+
+## Plot 2 — Peak Height and Death Rate
+
+We started by merging the `exped_tidy` and `peaks_tidy` datasets using `PEAKID` to obtain the height of each peak. We then filtered out expeditions with no members (`TOTMEMBERS == 0`) and those with unclear or irrelevant termination reasons (`TERMREASON` is 12, 13, or 14). To avoid double-counting, we kept only distinct expedition IDs. We created new columns: `PEOPLE`, calculated by summing the number of members (`TOTMEMBERS`) and hired personnel (`TOTHIRED`). `DEATHS` by adding member deaths (`MDEATHS`) and hired deaths (`HDEATHS`). A success indicator (`OUTCOME`) was also added, where expeditions were marked as "SUCCESS" if the termination reason was 1 or 3.
+
+From there, we filtered the dataset to include only successful expeditions. The data was then grouped by peak name (`PKNAME`) and height (`HEIGHTM`), and the death rate for each peak was computed. Finally, peaks with fewer than 20 climbers were excluded to ensure the death rate calculations were statistically reliable.
+
+```{r}
+exped_clean <- exped_tidy %>%
+  left_join(peaks_tidy, by = "PEAKID") %>%
+  select(PKNAME, PEAKID, EXPID, HEIGHTM, TOTMEMBERS, MDEATHS, TOTHIRED, HDEATHS, TERMREASON, TERMNOTE) %>%
+  filter(TOTMEMBERS != 0, !TERMREASON %in% c(12, 13, 14)) %>%
+  distinct(EXPID, .keep_all = TRUE) %>%
+  mutate(PEOPLE = TOTMEMBERS + TOTHIRED,
+         DEATHS = MDEATHS + HDEATHS,
+         OUTCOME = ifelse(TERMREASON %in% c(1, 3) & is.na(TERMNOTE), "SUCCESS", "FAILURE")) %>%
+  filter(OUTCOME == "SUCCESS") %>%
+  select(PKNAME, HEIGHTM, PEOPLE, DEATHS, OUTCOME)
+    
+exped_summary <- exped_clean %>%
+  group_by(PKNAME, HEIGHTM) %>%
+  summarise(TOTAL_PEOPLE = sum(PEOPLE),
+            TOTAL_DEATHS = sum(DEATHS),
+            DEATH_RATE = (TOTAL_DEATHS/TOTAL_PEOPLE)*100) %>%
+  filter(TOTAL_PEOPLE >= 20)
+
+```
+
+This plot highlights the trend between death rates and peak heights for successful climbs. For the purpose of this exploration, the definition of successful expeditions also considers the overall safety of crew members. Thus motivating the following visualisation of the relationship between peak heights and death rates.
+
+We chose a scatter plot to visualise the relationship between peak height and death rate because it is the most effective way to display the pattern between two continuous numerical variables. Each point in the plot represents a unique mountain peak, allowing for clear comparison across varying elevations.
+
+Using a scatter plot also enables us to overlay a loess smoother, which plots a best-fit curve through the data to highlight overall trends and patterns. This makes it easier to interpret the relationship without assuming a specific functional form.
+
+```{r}
+ggplot(exped_summary, aes(x = HEIGHTM, y = DEATH_RATE)) +
+  geom_point(shape = 21, color = "black", fill = "black",size = 1.5, stroke = 0.4) +
+  geom_segment(aes(x = 8000, xend = 8000, y = 0, yend = 0.85), 
+               linetype = "dashed", colour = "firebrick") +
+  annotate("text", x = 8000, y = 0.85,
+           label = "Death Zone\n(>8000m)",
+           size = 3, fontface = "bold",
+           hjust = 0.5, vjust = 0,
+           color = "firebrick") +
+  geom_smooth(method = "loess", formula = y ~ x, se = FALSE, size = 0.5, color = "blue") +
+  geom_text(data = subset(exped_summary,
+                          !(PKNAME %in% c("Himlung Himal","Baruntse", "Putha Hiunchuli", "Annapurna IV"))),
+            aes(label = paste0(PKNAME, " (", HEIGHTM, "m)")),
+            color = "gray20",
+            vjust = -1.1,
+            size = 2, 
+            fontface = "plain",
+            family = "sans") +
+  annotate("segment",
+           x = 7560, y = 0.05,
+           xend = 7525, yend = 0,
+           color = "black", 
+           linewidth = 0.3) +
+  annotate("text",
+           x = 7560, y = 0.035, 
+           label = "Annapurna IV (7525m)", 
+           color = "gray20",
+           vjust = -1.1,
+           fontface = "plain",
+           family = "sans",
+           size = 2) +
+  annotate("segment",
+           x = 7000, y = 0.12,
+           xend = 7126, yend = 0,
+           color = "black",
+           linewidth = 0.3) +
+  annotate("text",
+           x = 7000, y = 0.105, 
+           label = "Himlung Himal (7126m)",
+           color = "gray20",
+           vjust = -1.1,
+           fontface = "plain",
+           family = "sans",
+           size = 2) +
+  annotate("segment",
+           x = 7350, y = 0.10,
+           xend = 7246, yend = 0,
+           color = "black", 
+           linewidth = 0.3) +
+  annotate("text",
+            x = 7500, y = 0.075, 
+           label = "Putha Hiunchuli (7246m)",
+           color = "gray20",
+           vjust = -1.1,
+           fontface = "plain",
+           family = "sans",
+           size = 2) +
+  annotate("segment",
+           x = 7280, y = 0.18,
+           xend = 7152, yend = 0,
+           color = "black", 
+           linewidth = 0.3) + 
+  annotate("text",
+           x = 7280, y = 0.20, 
+           label = "Baruntse (7152m)",
+           color = "gray20",
+           fontface = "plain",
+           family = "sans",
+           size = 2) +
+  annotate("segment", 
+           xend = 7980, x = 7500,
+           yend = 0.12, y = 0.4,
+           arrow = arrow(length = unit(0.2, "cm")), 
+           color = "firebrick",
+           linewidth = 0.3) +
+  geom_label(aes(x = 7400, y = 0.48, 
+                 label = "Death rate increases sharply\nbeyond 8000m"),
+             size = 2.5,
+             family = "sans",
+             fontface = "italic",
+             fill = "white",
+             color = "firebrick",
+             label.size = 0.2) +
+  scale_y_continuous(limits = c(0, 1),
+                     breaks = seq(0, 1, by = 0.2)) +
+  scale_x_continuous(limits = c(6000, 9000),
+                     breaks = seq(6000, 9000, by = 500)) +
+  labs(title = "Effect of Peak Height on Death Rate",
+       x = "Peak Height (m)", y = "Death Rate (%)",
+       caption = "Note: Data only includes successful climbs") +
+  theme_economist() +
+  theme(text = element_text(family = "mono"),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(size = 18, hjust = 0.5, margin = margin(b = 18), face = "bold"),
+        plot.caption.position = "plot",
+        plot.caption = element_text(hjust = 0, face = "italic", color = "gray30", size = 7),
+        axis.title.x = element_text(margin = margin(t = 10), size = 11), 
+        axis.title.y = element_text(margin = margin(r = 10), size = 11),
+        axis.text.x = element_text(size = 10),
+        axis.text.7 = element_text(size = 10),
+        plot.margin = margin(20, 20, 20, 10))
+```
+
+As seen from the plot, death rates for successful climbs are already very low at \< 1%. However, we noticed that the death rates increase exponentially for peaks above 8000m. This threshold marks the beginning of the 'Death Zone' (Lankford, 2021), where atmospheric pressure drops so significantly that the human body cannot function properly without supplemental oxygen. Furthermore, climbers in this zone face heightened risks due to the extreme cold, unpredictable weather and intense UV radiation. These combined factors help explain the sharp rise in death rates beyond the 8000m mark.
+
+## Plot 3 — Oxygen and Peak Height
+
+We started by excluding expeditions with termination reasons 1 or 3 that had notes (`TERMNOTE` not `NA`), which ended up to be 3 rows who terminated early but still indicated that it was a successful ascent falsely
+
+Then, we filtered the main dataset to remove expeditions whose oxygen use did not make sense (`O2USED == O2NONE`, as they are mutually exclusive), had unclear or irrelevant termination reasons (12, 13, 14), had no summit (`HIGHPOINT == 0)`, were part of the excluded expeditions, or had no members (`TOTMEMBERS == 0)`. We created a success indicator based on specific `TERMREASON` values (1, 3), joined in peak height data, and categorized expeditions by height. Finally, we summarized by height and oxygen use, excluded small or unsuccessful groups, and filled in missing combinations with defaults.
+
+```{r}
+exped_verify2 <- exped_tidy %>%
+  filter(TERMREASON %in% c(1, 3), !is.na(TERMNOTE))
+exclude <- pull(exped_verify2, EXPID)
+
+
+peaksheight <- peaks_tidy %>%
+  select(PEAKID, HEIGHTM)
+  
+exped_clean1 <- exped_tidy %>% 
+  filter(!O2USED == O2NONE, 
+         !TERMREASON %in% c(12, 13, 14), 
+         !HIGHPOINT == 0, 
+         !EXPID %in% exclude, 
+         !TOTMEMBERS == 0) %>% 
+  select(EXPID, PEAKID, TERMREASON, O2USED) %>%
+  mutate(success = TERMREASON %in% c(1, 3)) %>%
+  left_join(peaksheight, by = "PEAKID") %>%
+  mutate(height_category = case_when(HEIGHTM < 7000 ~ "Below 7000",
+                                     HEIGHTM >= 7000 & HEIGHTM < 7500 ~ "7000–7499",
+                                     HEIGHTM >= 7500 & HEIGHTM < 8000 ~ "7500–7999",
+                                     HEIGHTM >= 8000 & HEIGHTM < 8500 ~ "8000–8499",
+                                     HEIGHTM >= 8500 & HEIGHTM <= 9000 ~ "8500–9000",
+                                     TRUE ~ NA_character_)) %>%
+  group_by(height_category, O2USED) %>%
+  summarise(attempts = n(),
+            total_success = sum(success, na.rm = TRUE),
+            success_rate = total_success/attempts, .groups = "drop") %>%
+  filter(!attempts <= 5, success_rate >= 0.01) %>%
+  complete(height_category, O2USED, fill = list(success_rate = 0.005, attempts = 0))
+
+exped_clean1$height_category = factor(exped_clean1$height_category, 
+                                      levels = c("Below 7000", "7000–7499", "7500–7999", "8000–8499", "8500–9000"),
+                                      ordered = TRUE)
+```
+
+This bar chart visualizes how success rates vary across different peak height categories and whether oxygen was used. The data, although discrete, is segmented by oxygen use. We chose a bar graph to visualise our data because it allows for clear categorical comparison of success rates across different peak heights. Additionally, annotating the bars with the number of attempts adds contextual depth while maintaining clarity.
+
+```{r}
+ggplot(exped_clean1, aes(x = height_category, y = success_rate * 100)) + 
+  geom_col(aes(fill = O2USED), position = position_dodge(width = 0.9)) +
+  geom_text(aes(label = attempts, group = O2USED), position = position_dodge(width = 0.9), vjust = -0.3, size = 3) +
+  labs(title = "Success Rate by Peak Height and O2 Use (with Attempts Shown)",
+       y = "Success Rate (%)",
+       x = "Peak Height (m)",
+       fill = "Oxygen Used") +
+  theme_economist() +
+  theme(text = element_text(family = "mono"),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(size = 12, hjust = 0.5),
+        axis.title.x = element_text(margin = margin(t = 10), size = 11), 
+        axis.title.y = element_text(margin = margin(r = 10), size = 11),
+        axis.text.x = element_text(size = 10),
+        plot.margin = unit(c(1,2,1,1), "cm"))
+```
+
+At lower altitudes, more specifically “Below 7000m” to “7000-7499m” range, climbers not using oxygen achieved moderate to high success rates. No oxygen-assisted climbs were recorded in these lower categories, which could reflect that oxygen is unnecessary at these lower altitudes. In contrast, oxygen use is strongly associated with higher success at higher altitudes, from “8000-8499m” to “8500-9000m”. Climbers using oxygen for these higher altitudes had a much higher success rate than those who did not. There is also a clear drop in success rate for non-oxygen climbers as altitude increases. From the “Below 7000m” range to the “8500-9000m” range, there has been a drop in success without oxygen use, with a steady decreasing trend across heights. As oxygen availability sharply decreases with altitude, this is consistent with what we would expect.
+
+## Overall Discussion
+
+Together, these three plots reveal that Himalayan expedition outcomes are driven by both logistical and physiological factors. Logistically, larger teams—or even very small teams bolstered by hired support—enjoy higher success rates, since manpower and specialized skills help share loads, manage camps, and cover for fatigue or injury. Physiologically, once climbers enter the “Death Zone” above 8,000m, supplemental oxygen becomes the overriding determinant: fatality risk spikes sharply past this threshold, and oxygen‑assisted ascents on 8,000–8,499m and 8,500–9,000m peaks achieve success rates above 90–95%, whereas non‑oxygen climbs there see success plummet below 20%. Below 7,000m, oxygen is largely unnecessary—non‑oxygen teams still post moderate to high success (61–83%), but data sparsity outside typical practices limits broader comparison. In conclusion, while safe ascents largely require adequate team composition and hired support, supplemental oxygen and effective measurement of weather hazards ultimately dictate success at extreme altitudes.
+
+## References
+
+1.  Data Science Learning Community. (2024). Tidy Tuesday: A weekly social data project. Retrieved from <https://tidytues.day>
+
+2.  Lankford, H. V. (2021). The Death Zone: Lessons from History. Wilderness & Environmental Medicine. DOI: 10.1016/j.wem.2020.09.002
