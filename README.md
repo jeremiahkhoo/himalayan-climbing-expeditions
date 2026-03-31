@@ -32,6 +32,8 @@ A density plot comparing group size distributions for successful vs. failed expe
 
 **Key finding:** Without hired staff, failures concentrate in very small teams (~5 members). With hired support, team size becomes far less critical.
 
+![Plot 1](plots/plot1_expedition_group_size_and_success.png)
+
 ---
 
 ### Plot 2 — Effect of Peak Height on Death Rate *(my contribution)*
@@ -39,12 +41,16 @@ A scatter plot with a LOESS trend line showing how death rates vary across peaks
 
 **Key finding:** Death rates increase sharply beyond **8,000m** — the "Death Zone" — where reduced atmospheric pressure, extreme cold, unpredictable weather, and intense UV radiation combine to raise fatality risk significantly.
 
+![Plot 2](plots/plot2_peak_height_and_death_rate.png)
+
 ---
 
 ### Plot 3 — Oxygen Use and Peak Height *(teammates)*
 A grouped bar chart showing success rates across height categories, broken down by whether supplemental oxygen was used.
 
 **Key finding:** Oxygen use is strongly associated with success above 8,000m. Non-oxygen climbers see a steady drop in success rates as altitude increases.
+
+![Plot 3](plots/plot3_oxygen_and_peak_height.png)
 
 ---
 
