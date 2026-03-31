@@ -7,7 +7,7 @@
 
 ## 📌 Project Overview
 
-Using data from the [Himalayan Database](https://tidytues.day) — the most comprehensive record of mountaineering in the Nepal Himalaya — our team of 6 investigated: **what factors affect expedition success?**
+Using data from the [Himalayan Database](https://github.com/rfordatascience/tidytuesday/tree/main/data/2025/2025-01-21) — the most comprehensive record of mountaineering in the Nepal Himalaya — our team of 6 investigated: **what factors affect expedition success?**
 
 Out of 844 expeditions between 2020–2024, the overall summit success rate was approximately **72.5%**, leaving over 230 unsuccessful climbs. We examined variables such as team size, hired personnel, supplemental oxygen use, and peak height to identify what tips the odds toward success or failure.
 
@@ -66,11 +66,10 @@ A grouped bar chart showing success rates across height categories, broken down 
 
 ## 📚 Data Source
 
-- **TidyTuesday Week 3, 2025** — Himalayan Climbing Expeditions  
-  [https://tidytues.day](https://tidytues.day)
+- **TidyTuesday Week 3, 2025** — [The History of Himalayan Mountaineering Expeditions](https://github.com/rfordatascience/tidytuesday/tree/main/data/2025/2025-01-21)
 
 ---
 
 ## 👥 Team
 
-Group project (6 members) — NUS Data Cleaning & Visualisation course, April 2025.
+Group project (6 members) — NUS DSA2101, April 2025.
