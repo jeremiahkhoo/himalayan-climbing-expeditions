@@ -67,6 +67,7 @@ A grouped bar chart showing success rates across height categories, broken down 
 |------|-------------|
 | `Himalayan_Climbing_Expeditions.Rmd` | Full R Markdown source with all code and analysis |
 | `Himalayan-Climbing-Expeditions.pdf` | Rendered report with visualisations and writeup |
+| `packages.R` | Script to install all required R packages |
 
 ---
 
